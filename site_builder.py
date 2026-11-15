@@ -58,6 +58,7 @@ header p{margin:0;color:var(--muted)}
 .tag.hot{background:rgba(255,122,138,.14);color:var(--hot);font-weight:700}
 .tag.ok{background:rgba(93,242,176,.12);color:var(--aurora)}
 .tag.warn{background:rgba(255,207,107,.12);color:var(--warn)}
+.tag.bad{background:rgba(255,122,138,.10);color:var(--hot)}
 .trend{display:block;font-size:12px;font-weight:700;margin-top:2px}
 .trend.down{color:var(--aurora)}
 .trend.up{color:var(--hot)}
@@ -143,12 +144,25 @@ function chips(){
     `<button class="chip" data-o="${k}" aria-pressed="${state.origin===k}">${esc(v)}</button>`).join("");
 }
 
+// Live-sjekk i Google Flights (SerpApi)
+function liveTag(d){
+  if (!DATA.live || !DATA.live.enabled) return "";
+  const v = d.live;
+  if (!v) return `<span class="tag">Ikke sjekket live ennå</span>`;
+  const when = new Date(v.checked_at).toLocaleDateString("nb-NO", {day:"numeric", month:"short"});
+  if (v.status === "bekreftet")
+    return `<span class="tag ok" title="Sjekket ${esc(when)}">✓ Bekreftet live ${kr(v.price)}</span>`;
+  if (v.status === "endret")
+    return `<span class="tag bad" title="Sjekket ${esc(when)}">✗ Live nå ${v.price != null ? kr(v.price) : "–"}</span>`;
+  return `<span class="tag bad" title="Sjekket ${esc(when)}">✗ Ikke funnet live</span>`;
+}
+
 function cardFeil(d){
   return `<div class="card">
     <div><div class="route">${esc(d.origin)}<span class="arrow">→</span>${esc(d.destination)}</div>
       <div class="names">${esc(N[d.origin]||d.origin)} – ${esc(N[d.destination]||d.destination)} · ${dato(d.date)}</div></div>
     <div class="price">${kr(d.price)}<small>${kr(d.normal_price)}</small>${trend(d.price, d.prev_price)}</div>
-    <div class="tags"><span class="tag hot">−${d.discount_pct} %</span>
+    <div class="tags"><span class="tag hot">−${d.discount_pct} %</span>${liveTag(d)}
       <span class="tag">${d.transfers ? d.transfers + " bytte" : "direkte"}</span>
       <span class="tag">${esc(d.airline)}</span><span class="tag">${d.kr_per_km} kr/km</span>
       <a class="go" href="${esc(safeUrl(d.link))}" target="_blank" rel="noopener">Sjekk pris</a></div>
@@ -163,7 +177,7 @@ function cardSkjult(d){
     <div><div class="route">${esc(d.origin)}<span class="arrow">→</span>${esc(d.hub)}<span class="arrow">→</span><span class="skip">${esc(d.destination)}</span></div>
       <div class="names">Skal til ${esc(N[d.hub])}: bestill til ${esc(N[d.destination]||d.destination)} · ${dato(d.date)}</div></div>
     <div class="price">${kr(d.price)}<small>${kr(d.hub_price)}</small>${trend(d.price, d.prev_price)}</div>
-    <div class="tags"><span class="tag hot">Spar ${kr(d.savings)}</span>${via}
+    <div class="tags"><span class="tag hot">Spar ${kr(d.savings)}</span>${via}${liveTag(d)}
       <span class="tag">${esc(d.airline)}</span>
       <a class="go" href="${esc(safeUrl(d.link))}" target="_blank" rel="noopener">Sjekk pris</a></div>
   </div>`;
@@ -278,9 +292,11 @@ document.addEventListener("click", e => {
 
 const upd = new Date(DATA.updated).toLocaleString("nb-NO", {day:"numeric", month:"long", hour:"2-digit", minute:"2-digit"});
 document.getElementById("meta").innerHTML = `Oppdatert ${esc(upd)}` + (DATA.provider === "mock" ? `<span class="demo">Testdata</span>` : "");
-document.getElementById("footer").textContent = DATA.provider === "mock"
+document.getElementById("footer").textContent = (DATA.provider === "mock"
   ? "Prisene på denne siden er testdata. Koble til en API-nøkkel for ekte priser."
-  : "Prisene er bufret fra ekte søk og kan ha endret seg. Sjekk alltid prisen før du bestiller.";
+  : "Prisene er bufret fra ekte søk og kan ha endret seg. Sjekk alltid prisen før du bestiller.")
+  + (DATA.live && DATA.live.enabled
+     ? ` Live-sjekk (Google Flights): ${DATA.live.used_month} av ${DATA.live.limit} søk brukt denne måneden.` : "");
 chips(); setupSearch(); render();
 </script>
 </body>

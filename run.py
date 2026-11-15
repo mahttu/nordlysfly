@@ -16,6 +16,7 @@ import config
 import db
 import detect
 import site_builder
+import verify
 from providers import get_provider
 
 
@@ -84,6 +85,10 @@ def main() -> None:
     detect.add_trend(con, hidden, run_ts)
     oslo = detect.popular_from_oslo(con, offers, run_ts)
     search = detect.search_index(con, offers, run_ts)
+    live = verify.run(con, error_fares, hidden)
+    if live["enabled"]:
+        print(f"SerpApi: sjekket {live['checked_now']} treff nå, "
+              f"{live['used_month']}/{live['limit']} søk brukt denne måneden, {live['waiting']} venter")
     print(f"Fant {len(error_fares)} mulige feilpriser og {len(hidden)} skjult by-billetter")
 
     result = {
@@ -96,6 +101,7 @@ def main() -> None:
         "hidden_city": hidden,
         "oslo": oslo,
         "search": search,
+        "live": live,
         "marker": os.environ.get("TRAVELPAYOUTS_MARKER") or None,
     }
     Path(config.SITE_DIR).mkdir(exist_ok=True)

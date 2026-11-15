@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS observations (
     via TEXT, link TEXT, provider TEXT, fetched_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_route ON observations (origin, destination, fetched_at);
+CREATE TABLE IF NOT EXISTS serpapi_usage (day TEXT PRIMARY KEY, n INTEGER);
+CREATE TABLE IF NOT EXISTS verifications (
+    key TEXT PRIMARY KEY, depart_date TEXT, checked_at TEXT, status TEXT, data TEXT
+);
 CREATE INDEX IF NOT EXISTS idx_key ON observations (origin, destination, depart_date, fetched_at);
 """
 
@@ -102,3 +106,39 @@ def previous_run_prices(con: sqlite3.Connection, before: str) -> dict:
         " WHERE fetched_at BETWEEN ? AND ? GROUP BY origin, destination, depart_date",
         (_window_start(last), last))
     return {(o, d, day): p for o, d, day, p in rows}
+
+
+# ---------- SerpApi-forbruk og bekreftelser ----------
+def usage_month(con: sqlite3.Connection, month: str) -> int:
+    return con.execute("SELECT COALESCE(SUM(n),0) FROM serpapi_usage WHERE day LIKE ?",
+                       (month + "%",)).fetchone()[0]
+
+
+def usage_day(con: sqlite3.Connection, day: str) -> int:
+    r = con.execute("SELECT n FROM serpapi_usage WHERE day=?", (day,)).fetchone()
+    return r[0] if r else 0
+
+
+def add_usage(con: sqlite3.Connection, day: str, n: int = 1) -> None:
+    con.execute("INSERT INTO serpapi_usage(day, n) VALUES(?, ?) "
+                "ON CONFLICT(day) DO UPDATE SET n = n + excluded.n", (day, n))
+    con.commit()
+
+
+def get_verification(con: sqlite3.Connection, key: str) -> dict | None:
+    r = con.execute("SELECT status, data, checked_at FROM verifications WHERE key=?", (key,)).fetchone()
+    if not r:
+        return None
+    return {"status": r[0], **json.loads(r[1]), "checked_at": r[2]}
+
+
+def save_verification(con: sqlite3.Connection, key: str, depart_date: str,
+                      checked_at: str, status: str, data: dict) -> None:
+    con.execute("INSERT OR REPLACE INTO verifications VALUES (?,?,?,?,?)",
+                (key, depart_date, checked_at, status, json.dumps(data)))
+    con.commit()
+
+
+def prune_verifications(con: sqlite3.Connection, today: str) -> None:
+    con.execute("DELETE FROM verifications WHERE depart_date < ?", (today,))
+    con.commit()

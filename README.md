@@ -14,6 +14,11 @@ Finner to typer billige billetter fra **Bodø (BOO)**, **Evenes (EVE)** og **Tro
 Fra Oslo tas bare avganger fra **Gardermoen** med (ikke Torp/Rygge, se `OSLO_ALLOWED_AIRPORTS`).
 Fra Nord-Norge kan reisen gå via Torp.
 
+**Live-bekreftelse (valgfritt):** Med `SERPAPI_KEY` sjekkes nye treff mot Google Flights.
+Maks 250 søk per måned (`SERPAPI_MONTHLY_LIMIT`), fordelt jevnt på dagene som er igjen, så det
+alltid er søk til hver dag ut måneden. Treff fra Evenes og Bodø sjekkes før Tromsø og Oslo
+(`VERIFY_PRIORITY`). Hvert treff sjekkes én gang («Via Oslo» bruker 2 søk).
+
 Hver pris viser om den har gått **ned (grønn ▼)** eller **opp (rød ▲)** siden forrige prissjekk.
 
 Ingen ekstra pakker trengs, bare Python 3.10+.
@@ -54,6 +59,7 @@ Koden sender nøkkelen i en HTTP-header (`X-Access-Token`), ikke i URL-en.
 | `providers.py` | Henter priser (testdata eller Travelpayouts) |
 | `db.py` | Lagrer all prishistorikk i SQLite |
 | `detect.py` | Finner feilpriser og skjult by |
+| `verify.py` | Bekrefter treff live i Google Flights (SerpApi) |
 | `site_builder.py` | Lager nettsiden |
 | `run.py` | Kjører alt |
 

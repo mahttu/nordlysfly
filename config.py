@@ -86,5 +86,21 @@ DEFAULT_HUB = "OSL"
 # Skjult by: minste besparelse i kroner for å vise et treff
 MIN_HIDDEN_CITY_SAVINGS = 150
 
+# Live-bekreftelse av treff via Google Flights (SerpApi). Krever SERPAPI_KEY.
+SERPAPI_MONTHLY_LIMIT = 250          # maks søk per kalendermåned (gratisplanen)
+# Rekkefølge når det er flere treff enn søk igjen: lavest tall sjekkes først
+VERIFY_PRIORITY = {"EVE": 1, "BOO": 1, "TOS": 2, "OSL": 2}
+VERIFY_PRICE_TOLERANCE = 1.15        # bekreftet hvis live pris er maks 15 % over oppgitt pris
+# Bykoder fra Travelpayouts → flyplasser i Google Flights
+CITY_AIRPORTS = {
+    "LON": "LHR,LGW,STN,LTN,LCY,SEN",
+    "PAR": "CDG,ORY,BVA",
+    "ROM": "FCO,CIA",
+    "NYC": "JFK,EWR,LGA",
+    "OSL": "OSL,TRF,RYG",            # som reisemål fra Nord-Norge er Torp/Rygge greit
+}
+# Flyplasser som teller som «går via» hver hub
+HUB_AIRPORTS = {"OSL": {"OSL", "TRF", "RYG"}, "TRD": {"TRD"}, "BGO": {"BGO"}}
+
 DB_PATH = "priser.sqlite"
 SITE_DIR = "site"
