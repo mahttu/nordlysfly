@@ -34,6 +34,13 @@ header p{margin:0;color:var(--muted)}
 .tab b{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--aurora);margin-left:4px}
 .chips{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
 .chips[hidden]{display:none}
+.search{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.search[hidden]{display:none}
+.search label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.search select,.search input[type=date]{font:inherit;font-size:15px;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 10px;color-scheme:dark;width:100%}
+.search .flex{grid-column:1/-1;flex-direction:row;align-items:center;gap:8px;font-size:14px;color:var(--text)}
+.search .flex input{width:18px;height:18px;accent-color:var(--aurora)}
+.live{display:block;text-align:center;margin:0 0 10px;padding:10px;border:1px dashed var(--line);border-radius:12px;color:var(--aurora2);text-decoration:none;font-size:14px}
 .chip{border:1px solid var(--line);background:none;color:var(--muted);font:inherit;font-size:14px;padding:6px 12px;border-radius:99px;cursor:pointer}
 .chip[aria-pressed=true]{border-color:var(--aurora);color:var(--aurora);background:rgba(93,242,176,.08)}
 .info{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:10px;padding:12px 14px;font-size:14px;color:var(--muted);margin:10px 0 14px}
@@ -74,10 +81,18 @@ footer{margin-top:30px;font-size:12px;color:var(--muted)}
   <div class="controls">
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" data-tab="feil" aria-selected="true">Feilpriser<b id="n-feil"></b></button>
-      <button class="tab" role="tab" data-tab="skjult" aria-selected="false">Billigere via Oslo<b id="n-skjult"></b></button>
+      <button class="tab" role="tab" data-tab="skjult" aria-selected="false">Via Oslo<b id="n-skjult"></b></button>
       <button class="tab" role="tab" data-tab="oslo" aria-selected="false">Fra Oslo<b id="n-oslo"></b></button>
+      <button class="tab" role="tab" data-tab="sok" aria-selected="false">Søk</button>
     </div>
     <div class="chips" id="chips"></div>
+    <div class="search" id="search" hidden>
+      <label>Fra<select id="s-from"></select></label>
+      <label>Til<select id="s-to"></select></label>
+      <label>Dato<input type="date" id="s-date"></label>
+      <label>Sortering<select id="s-sort"><option value="price">Billigst først</option><option value="date">Dato</option></select></label>
+      <label class="flex"><input type="checkbox" id="s-flex"> Vis også ± 3 dager</label>
+    </div>
   </div>
 
   <div class="info" id="info-skjult" hidden>
@@ -92,6 +107,10 @@ footer{margin-top:30px;font-size:12px;color:var(--muted)}
     <strong>De 20 mest populære reisene fra Oslo</strong> med billigste enveispris de neste månedene. Pilen viser om billigste pris har gått <span style="color:var(--aurora)">ned ▼</span> eller <span style="color:var(--hot)">opp ▲</span> siden forrige prissjekk.
   </div>
 
+  <div class="info" id="info-sok" hidden>
+    <strong>Søk i lagrede priser</strong> for de neste månedene. Prisene er bufret og kan ha endret seg – trykk «Sjekk pris» for live pris på Aviasales. Velg «Alle» for å se alle reisemål samme dag.
+  </div>
+
   <div class="list" id="list"></div>
 
   <footer id="footer"></footer>
@@ -102,7 +121,7 @@ const DATA = __DATA__;
 const N = DATA.names;
 const state = {tab: "feil", origin: "ALL"};
 try { const s = JSON.parse(localStorage.getItem("nf-state")||"{}"); Object.assign(state, s); } catch(e) {}
-if (!["feil","skjult","oslo"].includes(state.tab)) state.tab = "feil";
+if (!["feil","skjult","oslo","sok"].includes(state.tab)) state.tab = "feil";
 if (state.origin !== "ALL" && !(state.origin in DATA.origins)) state.origin = "ALL";
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -163,25 +182,94 @@ function cardOslo(d){
   </div>`;
 }
 
+// ---------- Søk på dato ----------
+const S = DATA.search || {};
+const routesFrom = o => Object.keys(S).filter(k => k.startsWith(o + "-")).map(k => k.split("-")[1]);
+const allDates = Object.values(S).flatMap(r => Object.keys(r.d)).sort();
+function aviasalesLink(o, d, day){
+  const [y, m, dd] = day.split("-");
+  return `https://www.aviasales.com/search/${o}${dd}${m}${d}1` + (DATA.marker ? `?marker=${encodeURIComponent(DATA.marker)}` : "");
+}
+function setupSearch(){
+  const from = document.getElementById("s-from"), dt = document.getElementById("s-date");
+  from.innerHTML = Object.keys(DATA.origins).filter(o => routesFrom(o).length)
+    .map(o => `<option value="${o}">${esc(DATA.origins[o])}</option>`).join("");
+  if (state.sFrom && routesFrom(state.sFrom).length) from.value = state.sFrom;
+  fillTo();
+  if (allDates.length){ dt.min = allDates[0]; dt.max = allDates[allDates.length-1]; }
+  dt.value = (state.sDate && state.sDate >= dt.min && state.sDate <= dt.max) ? state.sDate : (allDates[0] || "");
+  document.getElementById("s-flex").checked = !!state.sFlex;
+  document.getElementById("s-sort").value = state.sSort || "price";
+}
+function fillTo(){
+  const o = document.getElementById("s-from").value, to = document.getElementById("s-to");
+  const dests = routesFrom(o).sort((a, b) => (N[a]||a).localeCompare(N[b]||b, "nb"));
+  to.innerHTML = `<option value="ALL">Alle reisemål</option>` +
+    dests.map(d => `<option value="${d}">${esc(N[d]||d)}</option>`).join("");
+  if (state.sTo && dests.includes(state.sTo)) to.value = state.sTo;
+}
+function addDays(day, n){ const t = new Date(day + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); }
+function searchResults(){
+  const o = state.sFrom = document.getElementById("s-from").value;
+  const to = state.sTo = document.getElementById("s-to").value;
+  const day = state.sDate = document.getElementById("s-date").value;
+  state.sFlex = document.getElementById("s-flex").checked;
+  state.sSort = document.getElementById("s-sort").value;
+  if (!o || !day) return {items: [], live: ""};
+  const days = state.sFlex ? [-3,-2,-1,0,1,2,3].map(n => addDays(day, n)) : [day];
+  const dests = to === "ALL" ? routesFrom(o) : [to];
+  const rows = [];
+  for (const d of dests){
+    const r = S[`${o}-${d}`]; if (!r) continue;
+    for (const x of days){ const v = r.d[x]; if (v) rows.push({o, d, day: x, price: v[0], airline: v[1], transfers: v[2], prev: v[3], normal: r.n}); }
+  }
+  rows.sort(state.sSort === "date" ? (a, b) => a.day.localeCompare(b.day) || a.price - b.price : (a, b) => a.price - b.price);
+  const live = to !== "ALL"
+    ? `<a class="live" href="${esc(aviasalesLink(o, to, day))}" target="_blank" rel="noopener">Søk live på Aviasales: ${esc(N[o]||o)} → ${esc(N[to]||to)}, ${dato(day)} ↗</a>` : "";
+  return {items: rows.slice(0, 60).map(cardSok), live};
+}
+function cardSok(r){
+  return `<div class="card">
+    <div><div class="route">${esc(r.o)}<span class="arrow">→</span>${esc(r.d)}</div>
+      <div class="names">${esc(N[r.o]||r.o)} – ${esc(N[r.d]||r.d)} · ${dato(r.day)}</div></div>
+    <div class="price">${kr(r.price)}${r.normal ? `<span class="normal">normalt ${kr(r.normal)}</span>` : ""}${trend(r.price, r.prev)}</div>
+    <div class="tags"><span class="tag">${r.transfers ? r.transfers + " bytte" : "direkte"}</span>
+      <span class="tag">${esc(r.airline)}</span>
+      <a class="go" href="${esc(aviasalesLink(r.o, r.d, r.day))}" target="_blank" rel="noopener">Sjekk pris</a></div>
+  </div>`;
+}
+
 function render(){
   const f = d => state.origin === "ALL" || d.origin === state.origin;
   const feil = DATA.error_fares.filter(f), skjult = DATA.hidden_city.filter(f);
   document.getElementById("n-feil").textContent = feil.length;
   document.getElementById("n-skjult").textContent = skjult.length;
   document.getElementById("n-oslo").textContent = (DATA.oslo||[]).length;
-  document.getElementById("chips").hidden = state.tab === "oslo";
+  document.getElementById("chips").hidden = state.tab === "oslo" || state.tab === "sok";
+  document.getElementById("search").hidden = state.tab !== "sok";
   document.getElementById("info-oslo").hidden = state.tab !== "oslo";
+  document.getElementById("info-sok").hidden = state.tab !== "sok";
   document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t.dataset.tab === state.tab));
   document.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c.dataset.o === state.origin));
   document.getElementById("info-feil").hidden = state.tab !== "feil";
   document.getElementById("info-skjult").hidden = state.tab !== "skjult";
-  const items = state.tab === "feil" ? feil.map(cardFeil)
-    : state.tab === "skjult" ? skjult.map(cardSkjult) : (DATA.oslo||[]).map(cardOslo);
-  document.getElementById("list").innerHTML = items.length ? items.join("")
-    : `<div class="empty">Ingen treff akkurat nå. Prisene sjekkes jevnlig.</div>`;
+  let items, live = "", empty = "Ingen treff akkurat nå. Prisene sjekkes jevnlig.";
+  if (state.tab === "sok") {
+    ({items, live} = searchResults());
+    empty = "Ingen lagrede priser for denne datoen. Prøv «± 3 dager» eller søk live på Aviasales.";
+  } else {
+    items = state.tab === "feil" ? feil.map(cardFeil)
+      : state.tab === "skjult" ? skjult.map(cardSkjult) : (DATA.oslo||[]).map(cardOslo);
+  }
+  document.getElementById("list").innerHTML = live + (items.length ? items.join("")
+    : `<div class="empty">${empty}</div>`);
   try { localStorage.setItem("nf-state", JSON.stringify(state)); } catch(e) {}
 }
 
+document.getElementById("search").addEventListener("change", e => {
+  if (e.target.id === "s-from") { state.sTo = "ALL"; fillTo(); }
+  render();
+});
 document.addEventListener("click", e => {
   const t = e.target.closest(".tab"), c = e.target.closest(".chip");
   if (t) { state.tab = t.dataset.tab; render(); }
@@ -193,7 +281,7 @@ document.getElementById("meta").innerHTML = `Oppdatert ${esc(upd)}` + (DATA.prov
 document.getElementById("footer").textContent = DATA.provider === "mock"
   ? "Prisene på denne siden er testdata. Koble til en API-nøkkel for ekte priser."
   : "Prisene er bufret fra ekte søk og kan ha endret seg. Sjekk alltid prisen før du bestiller.";
-chips(); render();
+chips(); setupSearch(); render();
 </script>
 </body>
 </html>

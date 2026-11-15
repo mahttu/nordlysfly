@@ -34,6 +34,9 @@ BEYOND = {
 # De 20 mest populære reisene fra Oslo lufthavn (OSL), i omtrentlig rekkefølge.
 # Satt sammen fra Avinor- og Norwegian-statistikk; endre fritt.
 OSLO_ORIGIN = "OSL"
+# «OSL» er bykoden for hele Oslo (Gardermoen, Torp og Rygge). Avganger fra Oslo
+# skal bare være fra Gardermoen. (Fra Nord-Norge kan reisen gjerne gå via Torp.)
+OSLO_ALLOWED_AIRPORTS = {"OSL"}
 OSLO_DESTINATIONS = {
     "TRD": "Trondheim",
     "BGO": "Bergen",

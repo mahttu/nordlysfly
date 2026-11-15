@@ -32,6 +32,7 @@ class Offer:
     via: list[str] | None       # mellomlandinger hvis kjent, ellers None
     link: str
     provider: str
+    origin_airport: str | None = None   # faktisk avreiseflyplass, f.eks. OSL eller TRF
     fetched_at: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec="seconds"))
 
@@ -112,6 +113,7 @@ class TravelpayoutsProvider:
                 via=None,
                 link=link,
                 provider=self.name,
+                origin_airport=row.get("origin_airport"),
             ))
         return offers
 
@@ -165,10 +167,13 @@ class MockProvider:
                         price = hub_price * r.uniform(0.55, 0.8)
                 if r.random() < 0.004:        # innplantet feilpris
                     price *= r.uniform(0.15, 0.35)
+                airport = origin
+                if origin == "OSL" and r.random() < 0.25:   # noen avganger fra Torp
+                    airport, price, airline = "TRF", price * 0.6, "FR"
                 q = urllib.parse.urlencode({"o": origin, "d": destination, "date": d.isoformat()})
                 offers.append(Offer(origin, destination, d.isoformat(), round(price),
                                     "NOK", airline, transfers, via,
-                                    f"https://example.com/sok?{q}", self.name))
+                                    f"https://example.com/sok?{q}", self.name, airport))
             d += timedelta(days=1)
         return offers
 

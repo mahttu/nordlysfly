@@ -8,6 +8,12 @@ Finner to typer billige billetter fra **Bodø (BOO)**, **Evenes (EVE)** og **Tro
 3. **Fra Oslo** – billigste pris på de 20 mest populære reisene fra Oslo (OSL). Disse rutene
    sjekkes også for feilpriser.
 
+4. **Søk** – velg avreise, reisemål (eller «Alle») og dato, eventuelt ± 3 dager, og se lagrede
+   priser. «Søk live på Aviasales» åpner et ekte søk for valgt rute og dato.
+
+Fra Oslo tas bare avganger fra **Gardermoen** med (ikke Torp/Rygge, se `OSLO_ALLOWED_AIRPORTS`).
+Fra Nord-Norge kan reisen gå via Torp.
+
 Hver pris viser om den har gått **ned (grønn ▼)** eller **opp (rød ▲)** siden forrige prissjekk.
 
 Ingen ekstra pakker trengs, bare Python 3.10+.

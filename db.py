@@ -22,6 +22,11 @@ CREATE INDEX IF NOT EXISTS idx_key ON observations (origin, destination, depart_
 def connect(path: str) -> sqlite3.Connection:
     con = sqlite3.connect(path)
     con.executescript(SCHEMA)
+    if con.execute("PRAGMA user_version").fetchone()[0] < 2:
+        # Versjon 2: Oslo-priser lagret før dette kan være fra Torp/Rygge – slett dem
+        con.execute("DELETE FROM observations WHERE origin='OSL'")
+        con.execute("PRAGMA user_version = 2")
+        con.commit()
     return con
 
 
@@ -84,3 +89,16 @@ def previous_route_min(con: sqlite3.Connection, origin: str, destination: str,
         "SELECT MIN(price) FROM observations WHERE origin=? AND destination=? AND depart_date>=?"
         " AND fetched_at BETWEEN ? AND ?",
         (origin, destination, from_date, _window_start(last), last)).fetchone()[0]
+
+
+def previous_run_prices(con: sqlite3.Connection, before: str) -> dict:
+    """Billigste pris per (rute, dato) ved forrige henting, hentet i én spørring."""
+    last = con.execute("SELECT MAX(fetched_at) FROM observations WHERE fetched_at<?",
+                       (before,)).fetchone()[0]
+    if not last:
+        return {}
+    rows = con.execute(
+        "SELECT origin, destination, depart_date, MIN(price) FROM observations"
+        " WHERE fetched_at BETWEEN ? AND ? GROUP BY origin, destination, depart_date",
+        (_window_start(last), last))
+    return {(o, d, day): p for o, d, day, p in rows}

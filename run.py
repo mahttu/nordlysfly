@@ -65,6 +65,9 @@ def main() -> None:
                 time.sleep(0.3)     # snill mot API-et
     today = date.today().isoformat()
     offers = [o for o in offers if o.depart_date >= today]   # bufrede priser kan være passert
+    # Fra Oslo: bare avganger fra Gardermoen (ikke Torp/Rygge)
+    offers = [o for o in offers if not (o.origin == config.OSLO_ORIGIN and o.origin_airport
+                                        and o.origin_airport not in config.OSLO_ALLOWED_AIRPORTS)]
     for o in offers:
         o.fetched_at = run_ts
     print(f"Hentet {len(offers)} priser fra {provider.name}")
@@ -80,6 +83,7 @@ def main() -> None:
     detect.add_trend(con, error_fares, run_ts)
     detect.add_trend(con, hidden, run_ts)
     oslo = detect.popular_from_oslo(con, offers, run_ts)
+    search = detect.search_index(con, offers, run_ts)
     print(f"Fant {len(error_fares)} mulige feilpriser og {len(hidden)} skjult by-billetter")
 
     result = {
@@ -91,6 +95,8 @@ def main() -> None:
         "error_fares": error_fares,
         "hidden_city": hidden,
         "oslo": oslo,
+        "search": search,
+        "marker": os.environ.get("TRAVELPAYOUTS_MARKER") or None,
     }
     Path(config.SITE_DIR).mkdir(exist_ok=True)
     Path(config.SITE_DIR, "deals.json").write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")

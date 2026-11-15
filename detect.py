@@ -123,3 +123,21 @@ def popular_from_oslo(con, offers: list[Offer], before: str) -> list[dict]:
             "link": o.link if o else None,
         })
     return rows
+
+
+def search_index(con, offers: list[Offer], before: str) -> dict:
+    """Billigste pris per rute og dato, til søket på nettsiden.
+    Format: {"BOO-LON": {"n": normalpris, "d": {"2026-12-01": [pris, selskap, bytter, forrige]}}}"""
+    prev = db.previous_run_prices(con, before)
+    index = {}
+    for o in offers:
+        route = index.setdefault(f"{o.origin}-{o.destination}", {"n": None, "d": {}})
+        cur = route["d"].get(o.depart_date)
+        if cur is None or o.price < cur[0]:
+            route["d"][o.depart_date] = [round(o.price), o.airline, o.transfers,
+                                         prev.get((o.origin, o.destination, o.depart_date))]
+    for key, route in index.items():
+        prices = db.route_prices(con, *key.split("-"), config.HISTORY_DAYS)
+        if len(prices) >= config.MIN_OBSERVATIONS:
+            route["n"] = round(median(prices))
+    return index
