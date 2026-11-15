@@ -75,7 +75,7 @@ footer{margin-top:30px;font-size:12px;color:var(--muted)}
 <div class="wrap">
   <header>
     <h1>Nordlys <span>Fly</span></h1>
-    <p>Feilpriser og smarte billetter fra Bodø, Evenes, Tromsø og Oslo</p>
+    <p>Feilpriser og smarte billetter fra Bodø, Evenes og Tromsø</p>
     <div class="meta" id="meta"></div>
   </header>
 
@@ -83,7 +83,6 @@ footer{margin-top:30px;font-size:12px;color:var(--muted)}
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" data-tab="feil" aria-selected="true">Feilpriser<b id="n-feil"></b></button>
       <button class="tab" role="tab" data-tab="skjult" aria-selected="false">Via Oslo<b id="n-skjult"></b></button>
-      <button class="tab" role="tab" data-tab="oslo" aria-selected="false">Fra Oslo<b id="n-oslo"></b></button>
       <button class="tab" role="tab" data-tab="sok" aria-selected="false">Søk</button>
     </div>
     <div class="chips" id="chips"></div>
@@ -104,10 +103,6 @@ footer{margin-top:30px;font-size:12px;color:var(--muted)}
     <strong>Mulige feilpriser</strong> er priser langt under normalprisen på ruten. De forsvinner ofte i løpet av timer. Ikke bestill hotell før billetten er utstedt – flyselskapet kan kansellere.
   </div>
 
-  <div class="info" id="info-oslo" hidden>
-    <strong>De 20 mest populære reisene fra Oslo</strong> med billigste enveispris de neste månedene. Pilen viser om billigste pris har gått <span style="color:var(--aurora)">ned ▼</span> eller <span style="color:var(--hot)">opp ▲</span> siden forrige prissjekk.
-  </div>
-
   <div class="info" id="info-sok" hidden>
     <strong>Søk i lagrede priser</strong> for de neste månedene. Prisene er bufret og kan ha endret seg – trykk «Sjekk pris» for live pris på Aviasales. Velg «Alle» for å se alle reisemål samme dag.
   </div>
@@ -122,7 +117,7 @@ const DATA = __DATA__;
 const N = DATA.names;
 const state = {tab: "feil", origin: "ALL"};
 try { const s = JSON.parse(localStorage.getItem("nf-state")||"{}"); Object.assign(state, s); } catch(e) {}
-if (!["feil","skjult","oslo","sok"].includes(state.tab)) state.tab = "feil";
+if (!["feil","skjult","sok"].includes(state.tab)) state.tab = "feil";
 if (state.origin !== "ALL" && !(state.origin in DATA.origins)) state.origin = "ALL";
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -150,6 +145,8 @@ function liveTag(d){
   const v = d.live;
   if (!v) return `<span class="tag">Ikke sjekket live ennå</span>`;
   const when = new Date(v.checked_at).toLocaleDateString("nb-NO", {day:"numeric", month:"short"});
+  if (v.source === "utforsk")
+    return `<span class="tag ok">✓ Fra Google Flights</span>`;
   if (v.status === "bekreftet")
     return `<span class="tag ok" title="Sjekket ${esc(when)}">✓ Bekreftet live ${kr(v.price)}</span>`;
   if (v.status === "endret")
@@ -164,7 +161,7 @@ function cardFeil(d){
     <div class="price">${kr(d.price)}<small>${kr(d.normal_price)}</small>${trend(d.price, d.prev_price)}</div>
     <div class="tags"><span class="tag hot">−${d.discount_pct} %</span>${liveTag(d)}
       <span class="tag">${d.transfers ? d.transfers + " bytte" : "direkte"}</span>
-      <span class="tag">${esc(d.airline)}</span><span class="tag">${d.kr_per_km} kr/km</span>
+      <span class="tag">${esc(d.airline)}</span>${d.kr_per_km != null ? `<span class="tag">${d.kr_per_km} kr/km</span>` : ""}
       <a class="go" href="${esc(safeUrl(d.link))}" target="_blank" rel="noopener">Sjekk pris</a></div>
   </div>`;
 }
@@ -178,19 +175,6 @@ function cardSkjult(d){
       <div class="names">Skal til ${esc(N[d.hub])}: bestill til ${esc(N[d.destination]||d.destination)} · ${dato(d.date)}</div></div>
     <div class="price">${kr(d.price)}<small>${kr(d.hub_price)}</small>${trend(d.price, d.prev_price)}</div>
     <div class="tags"><span class="tag hot">Spar ${kr(d.savings)}</span>${via}${liveTag(d)}
-      <span class="tag">${esc(d.airline)}</span>
-      <a class="go" href="${esc(safeUrl(d.link))}" target="_blank" rel="noopener">Sjekk pris</a></div>
-  </div>`;
-}
-
-function cardOslo(d){
-  const head = `<div><div class="route"><span class="rank">${d.rank}.</span>${esc(d.origin)}<span class="arrow">→</span>${esc(d.destination)}</div>`;
-  if (d.price == null) return `<div class="card">${head}
-      <div class="names">${esc(N[d.destination]||d.destination)} · ingen priser hentet</div></div></div>`;
-  return `<div class="card">${head}
-      <div class="names">${esc(N[d.destination]||d.destination)} · billigst ${dato(d.date)}</div></div>
-    <div class="price">${kr(d.price)}${d.normal_price ? `<span class="normal">normalt ${kr(d.normal_price)}</span>` : ""}${trend(d.price, d.prev_price)}</div>
-    <div class="tags"><span class="tag">${d.transfers ? d.transfers + " bytte" : "direkte"}</span>
       <span class="tag">${esc(d.airline)}</span>
       <a class="go" href="${esc(safeUrl(d.link))}" target="_blank" rel="noopener">Sjekk pris</a></div>
   </div>`;
@@ -258,10 +242,8 @@ function render(){
   const feil = DATA.error_fares.filter(f), skjult = DATA.hidden_city.filter(f);
   document.getElementById("n-feil").textContent = feil.length;
   document.getElementById("n-skjult").textContent = skjult.length;
-  document.getElementById("n-oslo").textContent = (DATA.oslo||[]).length;
-  document.getElementById("chips").hidden = state.tab === "oslo" || state.tab === "sok";
+  document.getElementById("chips").hidden = state.tab === "sok";
   document.getElementById("search").hidden = state.tab !== "sok";
-  document.getElementById("info-oslo").hidden = state.tab !== "oslo";
   document.getElementById("info-sok").hidden = state.tab !== "sok";
   document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t.dataset.tab === state.tab));
   document.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c.dataset.o === state.origin));
@@ -273,7 +255,7 @@ function render(){
     empty = "Ingen lagrede priser for denne datoen. Prøv «± 3 dager» eller søk live på Aviasales.";
   } else {
     items = state.tab === "feil" ? feil.map(cardFeil)
-      : state.tab === "skjult" ? skjult.map(cardSkjult) : (DATA.oslo||[]).map(cardOslo);
+      : skjult.map(cardSkjult);
   }
   document.getElementById("list").innerHTML = live + (items.length ? items.join("")
     : `<div class="empty">${empty}</div>`);

@@ -1,7 +1,7 @@
 """Bekrefter treff med live priser fra Google Flights via SerpApi.
 
 - Maks config.SERPAPI_MONTHLY_LIMIT søk per måned, fordelt jevnt på dagene som er igjen.
-- Treff fra Evenes/Bodø sjekkes før Tromsø/Oslo (config.VERIFY_PRIORITY).
+- Treff fra Evenes/Bodø sjekkes før Tromsø (config.VERIFY_PRIORITY).
 - Et treff sjekkes bare én gang; resultatet lagres i databasen.
 - Uten SERPAPI_KEY gjøres ingenting.
 """
@@ -102,6 +102,10 @@ def run(con, error_fares: list[dict], hidden: list[dict]) -> dict:
     # Bruk tidligere resultater
     todo = []
     for d in deals:
+        if d.get("provider") == "google":      # kommer allerede fra Google Flights
+            d["live"] = {"status": "bekreftet", "price": d["price"], "source": "utforsk",
+                         "checked_at": datetime.now(timezone.utc).isoformat(timespec="minutes")}
+            continue
         v = db.get_verification(con, _key(d))
         if v:
             d["live"] = v

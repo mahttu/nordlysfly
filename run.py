@@ -17,6 +17,7 @@ import db
 import detect
 import site_builder
 import verify
+import explore
 from providers import get_provider
 
 
@@ -49,7 +50,6 @@ def main() -> None:
     con = db.connect(config.DB_PATH)
     destinations = list(config.HUBS) + list(config.BEYOND)
     routes = [(o, d) for o in config.ORIGINS for d in destinations]
-    routes += [(config.OSLO_ORIGIN, d) for d in config.OSLO_DESTINATIONS]
     # Alle priser i én kjøring får samme tidsstempel, så vi kan sammenligne med forrige henting
     run_ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -66,24 +66,29 @@ def main() -> None:
                 time.sleep(0.3)     # snill mot API-et
     today = date.today().isoformat()
     offers = [o for o in offers if o.depart_date >= today]   # bufrede priser kan være passert
-    # Fra Oslo: bare avganger fra Gardermoen (ikke Torp/Rygge)
-    offers = [o for o in offers if not (o.origin == config.OSLO_ORIGIN and o.origin_airport
-                                        and o.origin_airport not in config.OSLO_ALLOWED_AIRPORTS)]
+    print(f"Hentet {len(offers)} priser fra {provider.name}")
+    # Nord-Norge: Google Utforsk (maks ett søk per flyplass per dag)
+    g_new, g_reused, g_info = explore.fetch(con)
+    if g_info["searched"] or g_info["reused"] or g_info["skipped"]:
+        print(f"Google Utforsk: {len(g_new)} nye priser fra {', '.join(g_info['searched']) or '–'}, "
+              f"gjenbrukt fra i dag: {', '.join(g_info['reused']) or '–'}, "
+              f"hoppet over: {', '.join(g_info['skipped']) or '–'}")
+    offers += g_new
     for o in offers:
         o.fetched_at = run_ts
-    print(f"Hentet {len(offers)} priser fra {provider.name}")
+    to_save = offers
+    offers = offers + g_reused            # dagens tidligere Utforsk-priser lagres ikke på nytt
     if not offers:
         # Typisk feil nøkkel eller API-et er nede. Avbryt, så den forrige siden
         # og prishistorikken ikke blir erstattet med en tom versjon.
         sys.exit("Fikk ingen priser – avbryter uten å oppdatere siden.")
 
-    db.save(con, offers)
+    db.save(con, to_save)
     db.prune(con, config.HISTORY_DAYS)
     error_fares = detect.find_error_fares(con, offers)
     hidden = detect.find_hidden_city(offers)
     detect.add_trend(con, error_fares, run_ts)
     detect.add_trend(con, hidden, run_ts)
-    oslo = detect.popular_from_oslo(con, offers, run_ts)
     search = detect.search_index(con, offers, run_ts)
     live = verify.run(con, error_fares, hidden)
     if live["enabled"]:
@@ -94,12 +99,10 @@ def main() -> None:
     result = {
         "updated": datetime.now(timezone.utc).isoformat(timespec="minutes"),
         "provider": provider.name,
-        "origins": {**config.ORIGINS, config.OSLO_ORIGIN: "Oslo"},
-        "names": {**config.ORIGINS, **config.HUBS, **config.BEYOND, **config.OSLO_DESTINATIONS,
-                  config.OSLO_ORIGIN: "Oslo"},
+        "origins": config.ORIGINS,
+        "names": {**db.all_names(con), **config.ORIGINS, **config.HUBS, **config.BEYOND},
         "error_fares": error_fares,
         "hidden_city": hidden,
-        "oslo": oslo,
         "search": search,
         "live": live,
         "marker": os.environ.get("TRAVELPAYOUTS_MARKER") or None,

@@ -25,14 +25,14 @@ def find_error_fares(con, offers: list[Offer]) -> list[dict]:
             baselines[key] = median(prices) if len(prices) >= config.MIN_OBSERVATIONS else None
         normal = baselines[key]
         if normal and o.price <= normal * config.ERROR_FARE_RATIO:
-            km = distance_km(o.origin, o.destination)
+            km = distance_km(o.origin, o.destination) if o.destination in config.COORDS else None
             deals.append({
                 "type": "feilpris",
                 "origin": o.origin, "destination": o.destination,
                 "date": o.depart_date, "price": o.price, "currency": o.currency,
                 "normal_price": round(normal),
                 "discount_pct": round(100 * (1 - o.price / normal)),
-                "kr_per_km": round(o.price / km, 2),
+                "kr_per_km": round(o.price / km, 2) if km else None,
                 "airline": o.airline, "transfers": o.transfers,
                 "link": o.link, "provider": o.provider,
             })
@@ -97,32 +97,6 @@ def add_trend(con, deals: list[dict], before: str) -> None:
     """Legger til prisen ved forrige henting (prev_price), så siden kan vise opp/ned."""
     for d in deals:
         d["prev_price"] = db.previous_price(con, d["origin"], d["destination"], d["date"], before)
-
-
-def popular_from_oslo(con, offers: list[Offer], before: str) -> list[dict]:
-    """Billigste pris på hver av de populære rutene fra Oslo, med normalpris og trend."""
-    today = date.today().isoformat()
-    best = {}
-    for o in offers:
-        if o.origin == config.OSLO_ORIGIN and o.destination in config.OSLO_DESTINATIONS:
-            if o.destination not in best or o.price < best[o.destination].price:
-                best[o.destination] = o
-    rows = []
-    for rank, dest in enumerate(config.OSLO_DESTINATIONS, 1):
-        o = best.get(dest)
-        prices = db.route_prices(con, config.OSLO_ORIGIN, dest, config.HISTORY_DAYS)
-        normal = median(prices) if len(prices) >= config.MIN_OBSERVATIONS else None
-        rows.append({
-            "rank": rank, "origin": config.OSLO_ORIGIN, "destination": dest,
-            "date": o.depart_date if o else None,
-            "price": o.price if o else None,
-            "normal_price": round(normal) if normal else None,
-            "prev_price": db.previous_route_min(con, config.OSLO_ORIGIN, dest, before, today),
-            "airline": o.airline if o else None,
-            "transfers": o.transfers if o else None,
-            "link": o.link if o else None,
-        })
-    return rows
 
 
 def search_index(con, offers: list[Offer], before: str) -> dict:

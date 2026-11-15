@@ -5,18 +5,20 @@ Finner to typer billige billetter fra **Bodø (BOO)**, **Evenes (EVE)** og **Tro
 1. **Feilpriser** – priser langt under normalprisen på ruten (standard: 50 % eller mer under medianen).
 2. **Skjult by** – billetten til f.eks. London via Oslo er billigere enn billetten til Oslo
    samme dag. Man bestiller til London og går av i Oslo.
-3. **Fra Oslo** – billigste pris på de 20 mest populære reisene fra Oslo (OSL). Disse rutene
-   sjekkes også for feilpriser.
 
-4. **Søk** – velg avreise, reisemål (eller «Alle») og dato, eventuelt ± 3 dager, og se lagrede
+3. **Søk** – velg avreise, reisemål (eller «Alle») og dato, eventuelt ± 3 dager, og se lagrede
    priser. «Søk live på Aviasales» åpner et ekte søk for valgt rute og dato.
 
-Fra Oslo tas bare avganger fra **Gardermoen** med (ikke Torp/Rygge, se `OSLO_ALLOWED_AIRPORTS`).
 Fra Nord-Norge kan reisen gå via Torp.
+
+**Nord-Norge via Google Utforsk:** Travelpayouts har få priser fra Bodø, Evenes og Tromsø.
+Med `SERPAPI_KEY` gjøres ett Google Travel Explore-søk per flyplass per dag (Evenes, Bodø,
+Tromsø – `EXPLORE_ORIGINS`), som gir billigste enveispris til mange reisemål de neste 6 månedene.
+Feilpriser herfra dukker opp når ruten har minst 8 dager med historikk.
 
 **Live-bekreftelse (valgfritt):** Med `SERPAPI_KEY` sjekkes nye treff mot Google Flights.
 Maks 250 søk per måned (`SERPAPI_MONTHLY_LIMIT`), fordelt jevnt på dagene som er igjen, så det
-alltid er søk til hver dag ut måneden. Treff fra Evenes og Bodø sjekkes før Tromsø og Oslo
+alltid er søk til hver dag ut måneden. Treff fra Evenes og Bodø sjekkes før Tromsø
 (`VERIFY_PRIORITY`). Hvert treff sjekkes én gang («Via Oslo» bruker 2 søk).
 
 Hver pris viser om den har gått **ned (grønn ▼)** eller **opp (rød ▲)** siden forrige prissjekk.
@@ -55,10 +57,11 @@ Koden sender nøkkelen i en HTTP-header (`X-Access-Token`), ikke i URL-en.
 
 | Fil | Gjør |
 |---|---|
-| `config.py` | Flyplasser, destinasjoner, Oslo-topp 20 og terskler |
+| `config.py` | Flyplasser, destinasjoner og terskler |
 | `providers.py` | Henter priser (testdata eller Travelpayouts) |
 | `db.py` | Lagrer all prishistorikk i SQLite |
 | `detect.py` | Finner feilpriser og skjult by |
+| `explore.py` | Henter priser fra Nord-Norge med Google Utforsk (SerpApi) |
 | `verify.py` | Bekrefter treff live i Google Flights (SerpApi) |
 | `site_builder.py` | Lager nettsiden |
 | `run.py` | Kjører alt |

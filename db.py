@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS observations (
     via TEXT, link TEXT, provider TEXT, fetched_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_route ON observations (origin, destination, fetched_at);
+CREATE TABLE IF NOT EXISTS explore_runs (day TEXT, origin TEXT, PRIMARY KEY (day, origin));
+CREATE TABLE IF NOT EXISTS place_names (code TEXT PRIMARY KEY, name TEXT);
 CREATE TABLE IF NOT EXISTS serpapi_usage (day TEXT PRIMARY KEY, n INTEGER);
 CREATE TABLE IF NOT EXISTS verifications (
     key TEXT PRIMARY KEY, depart_date TEXT, checked_at TEXT, status TEXT, data TEXT
@@ -26,10 +28,18 @@ CREATE INDEX IF NOT EXISTS idx_key ON observations (origin, destination, depart_
 def connect(path: str) -> sqlite3.Connection:
     con = sqlite3.connect(path)
     con.executescript(SCHEMA)
+    cols = [r[1] for r in con.execute("PRAGMA table_info(observations)")]
+    if "origin_airport" not in cols:
+        con.execute("ALTER TABLE observations ADD COLUMN origin_airport TEXT")
     if con.execute("PRAGMA user_version").fetchone()[0] < 2:
         # Versjon 2: Oslo-priser lagret før dette kan være fra Torp/Rygge – slett dem
         con.execute("DELETE FROM observations WHERE origin='OSL'")
         con.execute("PRAGMA user_version = 2")
+        con.commit()
+    if con.execute("PRAGMA user_version").fetchone()[0] < 3:
+        # Versjon 3: avganger fra Oslo er fjernet – slett dem
+        con.execute("DELETE FROM observations WHERE origin='OSL'")
+        con.execute("PRAGMA user_version = 3")
         con.commit()
     return con
 
@@ -37,9 +47,10 @@ def connect(path: str) -> sqlite3.Connection:
 def save(con: sqlite3.Connection, offers: list[Offer]) -> None:
     con.executemany(
         "INSERT INTO observations (origin, destination, depart_date, price, currency, airline,"
-        " transfers, via, link, provider, fetched_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        " transfers, via, link, provider, fetched_at, origin_airport) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
         [(o.origin, o.destination, o.depart_date, o.price, o.currency, o.airline, o.transfers,
-          json.dumps(o.via) if o.via is not None else None, o.link, o.provider, o.fetched_at)
+          json.dumps(o.via) if o.via is not None else None, o.link, o.provider, o.fetched_at,
+          o.origin_airport)
          for o in offers])
     con.commit()
 
@@ -142,3 +153,34 @@ def save_verification(con: sqlite3.Connection, key: str, depart_date: str,
 def prune_verifications(con: sqlite3.Connection, today: str) -> None:
     con.execute("DELETE FROM verifications WHERE depart_date < ?", (today,))
     con.commit()
+
+
+# ---------- Google Utforsk ----------
+def explore_done(con: sqlite3.Connection, day: str, origin: str) -> bool:
+    return con.execute("SELECT 1 FROM explore_runs WHERE day=? AND origin=?",
+                       (day, origin)).fetchone() is not None
+
+
+def mark_explore(con: sqlite3.Connection, day: str, origin: str) -> None:
+    con.execute("INSERT OR IGNORE INTO explore_runs VALUES (?, ?)", (day, origin))
+    con.commit()
+
+
+def explore_offers_today(con: sqlite3.Connection, origin: str, day: str) -> list[Offer]:
+    """Utforsk-priser hentet tidligere i dag (gjenbrukes uten nytt søk)."""
+    rows = con.execute(
+        "SELECT origin, destination, depart_date, price, currency, airline, transfers, link,"
+        " provider, origin_airport, fetched_at FROM observations"
+        " WHERE provider='google' AND origin=? AND substr(fetched_at,1,10)=? AND depart_date>=?",
+        (origin, day, day)).fetchall()
+    return [Offer(r[0], r[1], r[2], r[3], r[4], r[5], r[6], None, r[7], r[8], r[9], r[10])
+            for r in rows]
+
+
+def save_names(con: sqlite3.Connection, names: dict) -> None:
+    con.executemany("INSERT OR REPLACE INTO place_names VALUES (?, ?)", names.items())
+    con.commit()
+
+
+def all_names(con: sqlite3.Connection) -> dict:
+    return dict(con.execute("SELECT code, name FROM place_names"))

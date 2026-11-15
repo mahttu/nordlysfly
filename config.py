@@ -31,35 +31,6 @@ BEYOND = {
     "BKK": "Bangkok",
 }
 
-# De 20 mest populære reisene fra Oslo lufthavn (OSL), i omtrentlig rekkefølge.
-# Satt sammen fra Avinor- og Norwegian-statistikk; endre fritt.
-OSLO_ORIGIN = "OSL"
-# «OSL» er bykoden for hele Oslo (Gardermoen, Torp og Rygge). Avganger fra Oslo
-# skal bare være fra Gardermoen. (Fra Nord-Norge kan reisen gjerne gå via Torp.)
-OSLO_ALLOWED_AIRPORTS = {"OSL"}
-OSLO_DESTINATIONS = {
-    "TRD": "Trondheim",
-    "BGO": "Bergen",
-    "SVG": "Stavanger",
-    "TOS": "Tromsø",
-    "LON": "London",
-    "CPH": "København",
-    "ARN": "Stockholm",
-    "ALC": "Alicante",
-    "AGP": "Málaga",
-    "LPA": "Gran Canaria",
-    "AMS": "Amsterdam",
-    "PAR": "Paris",
-    "BCN": "Barcelona",
-    "BER": "Berlin",
-    "GDN": "Gdańsk",
-    "KRK": "Kraków",
-    "HEL": "Helsingfors",
-    "ROM": "Roma",
-    "BKK": "Bangkok",
-    "NYC": "New York",
-}
-
 # Koordinater (brukes til å regne ut kr per km)
 COORDS = {
     "BOO": (67.27, 14.37), "EVE": (68.49, 16.68), "TOS": (69.68, 18.92),
@@ -88,8 +59,10 @@ MIN_HIDDEN_CITY_SAVINGS = 150
 
 # Live-bekreftelse av treff via Google Flights (SerpApi). Krever SERPAPI_KEY.
 SERPAPI_MONTHLY_LIMIT = 250          # maks søk per kalendermåned (gratisplanen)
+# Nord-Norge hentes fra Google Utforsk (1 søk per flyplass per dag), i denne rekkefølgen
+EXPLORE_ORIGINS = ["EVE", "BOO", "TOS"]
 # Rekkefølge når det er flere treff enn søk igjen: lavest tall sjekkes først
-VERIFY_PRIORITY = {"EVE": 1, "BOO": 1, "TOS": 2, "OSL": 2}
+VERIFY_PRIORITY = {"EVE": 1, "BOO": 1, "TOS": 2}
 VERIFY_PRICE_TOLERANCE = 1.15        # bekreftet hvis live pris er maks 15 % over oppgitt pris
 # Bykoder fra Travelpayouts → flyplasser i Google Flights
 CITY_AIRPORTS = {
