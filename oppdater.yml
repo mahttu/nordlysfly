@@ -1,0 +1,48 @@
+# Kjører prissjekken hver time på GitHub og publiserer siden med GitHub Pages.
+# Oppsett: Settings → Secrets and variables → Actions → New repository secret
+#   TRAVELPAYOUTS_TOKEN  (påkrevd)
+#   TRAVELPAYOUTS_MARKER (valgfritt)
+# og Settings → Pages → Source: GitHub Actions
+name: Oppdater priser
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+# Ikke start en ny kjøring mens den forrige fortsatt holder på
+concurrency:
+  group: oppdater-priser
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Hent prishistorikken fra forrige kjøring, så normalprisen blir bedre over tid
+      - uses: actions/cache@v4
+        with:
+          path: priser.sqlite
+          key: priser-${{ github.run_id }}
+          restore-keys: priser-
+      - name: Hent priser og bygg side
+        env:
+          PROVIDER: travelpayouts
+          TRAVELPAYOUTS_TOKEN: ${{ secrets.TRAVELPAYOUTS_TOKEN }}
+          TRAVELPAYOUTS_MARKER: ${{ secrets.TRAVELPAYOUTS_MARKER }}
+        run: python run.py
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - uses: actions/deploy-pages@v4
